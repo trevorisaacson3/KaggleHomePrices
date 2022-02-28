@@ -47,12 +47,17 @@ ggplot(trainData, aes(x=log(SalePrice))) +
  labs(x = "Sale Price", y = "", title = "Log Distribution of Sale Price")
 ```
 
+```{r}
+trn = sample(seq_len(nrow(trainData)), 0.70* round(nrow(trainData)))
+training = trainData[trn, ]
+testing = trainData[-trn, ]
 
-
-
+head(trainData, 10)
+```
 
 
 ## Multiple Linear Regression
+
 
 
 
