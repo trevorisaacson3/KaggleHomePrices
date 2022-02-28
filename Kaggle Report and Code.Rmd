@@ -7,6 +7,11 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+library(ggplot2)
+library(tidyverse)
+library(tidyr)
+library(rmarkdown)
 ```
 
 
@@ -24,6 +29,19 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ## Data Cleaning
+```{r}
+trainData = read.csv("train.csv")
+testData = read.csv("test.csv")
+head(trainData)
+```
+
+```{r}
+ggplot(trainData, aes(x=SalePrice)) + 
+ geom_histogram(aes(y=..density..), bins = 35, colour="black", fill="white") +
+ geom_density(alpha=.2, fill="#FF6666") + 
+ labs(x = "Sale Price", y = "", title = "Distribution of Sale Price")
+```
+
 
 
 
