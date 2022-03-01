@@ -25,7 +25,7 @@ library(randomForest)
 library(GGally)
 library(pls)
 library(splines)
-library(reticulate)
+library(boot)
 ```
 
 ```{r}
@@ -122,8 +122,8 @@ training = trainData[trn, ]
 testing = trainData[-trn, ]
 ```
 
-
-## Multiple Linear Regression
+## Multiple Linear Regression           
+|   To begin, we started with a simple multiple linear regression model.  We wanted to give ourselves a baseline root mean squared error value and because linear regression is the easiest to apply and interpret, we determined this is the best place to start.  The model is fit using 73 variables and the training set.  
 ```{r}
 linear = lm(SalePrice ~ ., data = training)
 summary(linear)
@@ -134,7 +134,8 @@ print(paste("MSE of Testing Set: ", round(sqrt(mean(MSE_testing)), 3)))
 
 
 
-## Splines and GAMs
+## Splines        
+|   After finding a baseline using linear regression, the next idea was to try fitting regression splines. When looking at some of the more explanatory variables, it was decided to perform a spline on the variables OverallCond, GarageCars, X1stFlrSF and X2ndFlrSF.  
 ```{r}
 #spline on X2ndFlrSF
 fit0 <- glm(SalePrice ~ bs(X2ndFlrSF, df = 2), data = training)
@@ -151,8 +152,8 @@ cvs3 <- cv.glm(testing, fit3, K = 10)$delta[1]
   
 degfree <- c(2, 3, 4, 5)
 cv <- c(cvs0, cvs, cvs2, cvs3)
-df_MSZoning <- data.frame(degfree, cv)
-df_MSZoning
+df_X2ndFlrSF <- data.frame(degfree, sqrt(cv))
+# df_X2ndFlrSF
 
 #spline on OverallCond
 fit0 <- glm(SalePrice ~ bs(OverallCond, df = 2), data = training)
@@ -169,8 +170,8 @@ cvs3 <- cv.glm(testing, fit3, K = 10)$delta[1]
   
 degfree <- c(2, 3, 4, 5)
 cv <- c(cvs0, cvs, cvs2, cvs3)
-df_overallCond <- data.frame(degfree, cv)
-df_overallCond
+df_overallCond <- data.frame(degfree, sqrt(cv))
+# df_overallCond
 
 #spline on X1stFlrSF
 fit0 <- glm(SalePrice ~ bs(X1stFlrSF, df = 2), data = training)
@@ -187,8 +188,8 @@ cvs3 <- cv.glm(testing, fit3, K = 10)$delta[1]
   
 degfree <- c(2, 3, 4, 5)
 cv <- c(cvs0, cvs, cvs2, cvs3)
-df_X1stFlrSF <- data.frame(degfree, cv)
-df_X1stFlrSF
+df_X1stFlrSF <- data.frame(degfree, sqrt(cv))
+# df_X1stFlrSF
 
 #spline on GarageCars
 fit0 <- glm(SalePrice ~ bs(GarageCars, df = 2), data = training)
@@ -205,17 +206,26 @@ cvs3 <- cv.glm(testing, fit3, K = 10)$delta[1]
   
 degfree <- c(2, 3, 4, 5)
 cv <- c(cvs0, cvs, cvs2, cvs3)
-df_GarageCars <- data.frame(degfree, cv)
-df_GarageCars
+df_GarageCars <- data.frame(degfree, sqrt(cv))
+# df_GarageCars
+
+
+splines = c("X2ndFlrSF", "OverallCond", "X1stFlrSF", "GarageCars")
+RMSEnumbers = c(df_X2ndFlrSF[1,2], df_overallCond[2,2], df_X1stFlrSF[4, 2], df_GarageCars[2,2])
+
+finalRMSEsplines = data.frame(Splines = splines, RMSE = round(RMSEnumbers,4), RMSE_Dollars = round(exp(RMSEnumbers), 2))
+finalRMSEsplines %>%
+  kable()
 ```
 
 # GAM Model
+
 ```{r echo = FALSE}
 gammod <- lm(SalePrice ~ . + bs(X2ndFlrSF, df = 2) + bs(OverallCond, df = 3) + bs(X1stFlrSF, df = 5) + bs(GarageCars, df = 3) , data = training)
-summary(gammod)
+#summary(gammod)
 gam_predict = predict(gammod, newdata = testing)
 gam_MSE = round(sqrt(mean((testing$SalePrice - gam_predict)^2)), 4)
-print(paste("Test MSE of GAM: ", gam_MSE))
+print(paste("Test RMSE of GAM: ", gam_MSE))
 ```
 
 
