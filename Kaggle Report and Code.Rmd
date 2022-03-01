@@ -1,13 +1,13 @@
 ---
 title: "Kaggle: House Prices with Advanced Regression Techniques"
-authors: "Trevor Isaacson, Hawas Alsadeed, Evan Kessler"
+author: "Trevor Isaacson, Hawas Alsadeed, Evan Kessler"
 date: "2/28/2022"
 output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
 set.seed(478)
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 knitr::opts_chunk$set(warning = FALSE)
 library(ggplot2)
 library(tidyverse)
@@ -42,21 +42,34 @@ library(splines)
 
 
 ## Data Cleaning
+
+|   Because the original sales price data is very heavily skewed, we needed to log transform the prices.  As shown in the histogram, we have a very heavy right tail because there are a  some listings with very high prices compared to the median price of $180,921 (blue line).  This non-normal shape and distribution is clearly evident in the Q-Q plot.  The observations clearly curve away from the line depicting a large amount of skew. 
 ```{r}
 trainData = read.csv("train.csv")
 testData = read.csv("test.csv")
 ```
 
-```{r}
+```{r echo = FALSE, message=FALSE, fig.width=5, fig.height=3,  fig.show='hold', out.width="50%"}
 ggplot(trainData, aes(x=SalePrice)) + 
  geom_histogram(aes(y=..density..), bins = 35, colour="black", fill="white") +
  geom_density(alpha=.2, fill="#FF6666") + 
+ geom_vline(xintercept = median(trainData$SalePrice), color = "blue", lty = 2) +
  labs(x = "Sale Price", y = "", title = "Distribution of Sale Price")
 
+ggplot(data = trainData, aes(sample = SalePrice)) +
+  stat_qq() + stat_qq_line() + ggtitle("Q-Q Plot of Original Sale Price") 
+```
+
+
+```{r echo = FALSE, message=FALSE, fig.width=5, fig.height=3,  fig.show='hold', out.width="50%"}
 ggplot(trainData, aes(x=log(SalePrice))) + 
  geom_histogram(aes(y=..density..), bins = 35, colour="black", fill="white") +
  geom_density(alpha=.2, fill="#FF6666") + 
+ geom_vline(xintercept = median(log(trainData$SalePrice)), color = "blue", lty = 2) +
  labs(x = "Sale Price", y = "", title = "Log Distribution of Sale Price")
+
+ggplot(data = trainData, aes(sample = log(SalePrice))) +
+  stat_qq() + stat_qq_line() + ggtitle("Q-Q Plot of Log Sale Price") 
 ```
 
 ```{r}
