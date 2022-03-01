@@ -6,12 +6,25 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
+set.seed(478)
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(warning = FALSE)
 library(ggplot2)
 library(tidyverse)
 library(tidyr)
 library(rmarkdown)
+library(e1071)
+library(glmnet)
+library(knitr)
+library(leaps)
+library(tree)
+library(dplyr)
+library(caret)
+library(gbm)
+library(randomForest)
+library(GGally)
+library(pls)
+library(splines)
 ```
 
 
@@ -32,7 +45,6 @@ library(rmarkdown)
 ```{r}
 trainData = read.csv("train.csv")
 testData = read.csv("test.csv")
-head(trainData)
 ```
 
 ```{r}
@@ -48,18 +60,61 @@ ggplot(trainData, aes(x=log(SalePrice))) +
 ```
 
 ```{r}
-trn = sample(seq_len(nrow(trainData)), 0.70* round(nrow(trainData)))
+## Changing Dataset
+# Easier to chnage values if character instead of factor 
+trainData = trainData %>%
+  select(-c(Id, Utilities, Condition2, RoofMatl)) %>%
+  mutate(SalePrice = log(SalePrice)) %>%
+  mutate(FullBath = factor(FullBath)) %>%
+  mutate(HalfBath = factor(HalfBath)) %>%
+  mutate(Fireplaces = factor(Fireplaces)) %>%
+  mutate(BsmtHalfBath = factor(BsmtHalfBath)) %>%
+  mutate(FireplaceQu = as.character(FireplaceQu), Electrical = as.character(Electrical), BsmtQual = as.character(BsmtQual), BsmtCond = as.character(BsmtCond)) %>%
+  mutate(BsmtExposure = as.character(BsmtExposure), BsmtFinType1 = as.character(BsmtFinType1), BsmtFinType2 = as.character(BsmtFinType2)) %>%
+  mutate(GarageType = as.character(GarageType), GarageFinish = as.character(GarageFinish), GarageCond = as.character(GarageCond), GarageQual = as.character(GarageQual)) %>%
+  mutate(MasVnrType = as.character(MasVnrType))
+  
+
+cond <- (colSums(is.na(trainData)) < 1000) # eliminates variables with over 1000 NA values
+trainData <- trainData[, cond, drop = TRUE]
+  
+trainData = trainData %>%
+  mutate(across(where(is.character), replace_na, "None")) %>%
+  mutate(across(where(is.integer), replace_na, 0))
+
+# colSums(is.na(trainData))
+  
+# cond2 <- colSums(trainData == is.integer(0)) # check int variables for values equal to 0
+# colSums(is.na(trainData))
+```
+
+
+```{r}
+# some variables have values with less than 5 values, so I bundled them into "Other"
+trainData = trainData %>%
+  mutate(Condition1 = fct_lump(Condition1, n = 5, other_level = "Other")) %>%
+  mutate(Neighborhood = fct_lump(Neighborhood, n = 5, other_level = "Other")) %>%
+  mutate(Exterior1st = fct_lump(Exterior1st, n = 5, other_level = "Other")) %>%
+  mutate(Exterior2nd = fct_lump(Exterior2nd, n = 5, other_level = "Other"))
+```
+
+
+```{r}
+# split into training and testing set
+trn = sample(seq_len(nrow(trainData)), 0.7* round(nrow(trainData)))
 training = trainData[trn, ]
 testing = trainData[-trn, ]
-
-head(trainData, 10)
 ```
 
 
 ## Multiple Linear Regression
-
-
-
+```{r}
+linear = lm(SalePrice ~ ., data = training)
+summary(linear)
+linear_predict = predict(linear, newdata = testing, type = "response")
+MSE_testing = (testing$SalePrice - linear_predict)^2
+print(paste("MSE of Testing Set: ", round(mean(MSE_testing), 3)))
+```
 
 
 
