@@ -27,6 +27,10 @@ library(pls)
 library(splines)
 ```
 
+```{r}
+trainData = read.csv("train.csv")
+testData = read.csv("test.csv")
+```
 
 ## Introduction
 |   Imagine you're looking to purchase a home in the near future.  How do you know the price of that home is accurate and fair.  What factors or variables are you looking at to gauge the final price?  For many, home prices are a number associated with a few key variables.  For example, many buyers are looking at the number of bedrooms, bathrooms and the color of the fence.  What other things affect the price of a home?  Location, building materials, condition and quality are just a few that could potentially impact the price of a house.  In this Kaggle competition, we look at home prices in Ames, Iowa and over 80 variables associated with those homes.  
@@ -43,11 +47,7 @@ library(splines)
 
 ## Data Cleaning
 
-|   Because the original sales price data is very heavily skewed, we needed to log transform the prices.  As shown in the histogram, we have a very heavy right tail because there are a  some listings with very high prices compared to the median price of $180,921 (blue line).  This non-normal shape and distribution is clearly evident in the Q-Q plot.  The observations clearly curve away from the line depicting a large amount of skew. 
-```{r}
-trainData = read.csv("train.csv")
-testData = read.csv("test.csv")
-```
+|   Because the original sales price data is very heavily skewed, we needed to log transform the prices.  As shown in the histogram, we have a very heavy right tail because there are a  some listings with very high prices compared to the median price of $180,921 (blue line).  This non-normal shape and distribution is clearly evident in the Q-Q plot.  By applying a log transformation, we fix this problem. 
 
 ```{r echo = FALSE, message=FALSE, fig.width=5, fig.height=3,  fig.show='hold', out.width="50%"}
 ggplot(trainData, aes(x=SalePrice)) + 
