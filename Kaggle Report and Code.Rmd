@@ -25,6 +25,7 @@ library(randomForest)
 library(GGally)
 library(pls)
 library(splines)
+library(reticulate)
 ```
 
 ```{r}
@@ -48,6 +49,8 @@ testData = read.csv("test.csv")
 ## Data Cleaning
 
 |   Because the original sales price data is very heavily skewed, we needed to log transform the prices.  As shown in the histogram, we have a very heavy right tail because there are a  some listings with very high prices compared to the median price of $180,921 (blue line).  This non-normal shape and distribution is clearly evident in the Q-Q plot.  By applying a log transformation, we fix this problem. 
+
+
 
 ```{r echo = FALSE, message=FALSE, fig.width=5, fig.height=3,  fig.show='hold', out.width="50%"}
 ggplot(trainData, aes(x=SalePrice)) + 
@@ -126,19 +129,94 @@ linear = lm(SalePrice ~ ., data = training)
 summary(linear)
 linear_predict = predict(linear, newdata = testing, type = "response")
 MSE_testing = (testing$SalePrice - linear_predict)^2
-print(paste("MSE of Testing Set: ", round(mean(MSE_testing), 3)))
+print(paste("MSE of Testing Set: ", round(sqrt(mean(MSE_testing)), 3)))
 ```
 
 
 
 ## Splines and GAMs
+```{r}
+#spline on X2ndFlrSF
+fit0 <- glm(SalePrice ~ bs(X2ndFlrSF, df = 2), data = training)
+cvs0 <- cv.glm(testing, fit0, K = 10)$delta[1]
 
+fit <- glm(SalePrice ~ bs(X2ndFlrSF, df = 3), data = training)
+cvs <- cv.glm(testing, fit, K = 10)$delta[1]
 
+fit2 <- glm(SalePrice ~ bs(X2ndFlrSF, df = 4), data = training)
+cvs2 <- cv.glm(testing, fit2, K = 10)$delta[1]
 
+fit3 <- glm(SalePrice ~ bs(X2ndFlrSF, df = 5), data = training)
+cvs3 <- cv.glm(testing, fit3, K = 10)$delta[1]
+  
+degfree <- c(2, 3, 4, 5)
+cv <- c(cvs0, cvs, cvs2, cvs3)
+df_MSZoning <- data.frame(degfree, cv)
+df_MSZoning
 
+#spline on OverallCond
+fit0 <- glm(SalePrice ~ bs(OverallCond, df = 2), data = training)
+cvs0 <- cv.glm(testing, fit0, K = 10)$delta[1]
 
+fit <- glm(SalePrice ~ bs(OverallCond, df = 3), data = training)
+cvs <- cv.glm(testing, fit, K = 10)$delta[1]
 
+fit2 <- glm(SalePrice ~ bs(OverallCond, df = 4), data = training)
+cvs2 <- cv.glm(testing, fit2, K = 10)$delta[1]
 
+fit3 <- glm(SalePrice ~ bs(OverallCond, df = 5), data = training)
+cvs3 <- cv.glm(testing, fit3, K = 10)$delta[1]
+  
+degfree <- c(2, 3, 4, 5)
+cv <- c(cvs0, cvs, cvs2, cvs3)
+df_overallCond <- data.frame(degfree, cv)
+df_overallCond
+
+#spline on X1stFlrSF
+fit0 <- glm(SalePrice ~ bs(X1stFlrSF, df = 2), data = training)
+cvs0 <- cv.glm(testing, fit0, K = 10)$delta[1]
+
+fit <- glm(SalePrice ~ bs(X1stFlrSF, df = 3), data = training)
+cvs <- cv.glm(testing, fit, K = 10)$delta[1]
+
+fit2 <- glm(SalePrice ~ bs(X1stFlrSF, df = 4), data = training)
+cvs2 <- cv.glm(testing, fit2, K = 10)$delta[1]
+
+fit3 <- glm(SalePrice ~ bs(X1stFlrSF, df = 5), data = training)
+cvs3 <- cv.glm(testing, fit3, K = 10)$delta[1]
+  
+degfree <- c(2, 3, 4, 5)
+cv <- c(cvs0, cvs, cvs2, cvs3)
+df_X1stFlrSF <- data.frame(degfree, cv)
+df_X1stFlrSF
+
+#spline on GarageCars
+fit0 <- glm(SalePrice ~ bs(GarageCars, df = 2), data = training)
+cvs0 <- cv.glm(testing, fit0, K = 10)$delta[1]
+
+fit <- glm(SalePrice ~ bs(GarageCars, df = 3), data = training)
+cvs <- cv.glm(testing, fit, K = 10)$delta[1]
+
+fit2 <- glm(SalePrice ~ bs(GarageCars, df = 4), data = training)
+cvs2 <- cv.glm(testing, fit2, K = 10)$delta[1]
+
+fit3 <- glm(SalePrice ~ bs(GarageCars, df = 5), data = training)
+cvs3 <- cv.glm(testing, fit3, K = 10)$delta[1]
+  
+degfree <- c(2, 3, 4, 5)
+cv <- c(cvs0, cvs, cvs2, cvs3)
+df_GarageCars <- data.frame(degfree, cv)
+df_GarageCars
+```
+
+# GAM Model
+```{r echo = FALSE}
+gammod <- lm(SalePrice ~ . + bs(X2ndFlrSF, df = 2) + bs(OverallCond, df = 3) + bs(X1stFlrSF, df = 5) + bs(GarageCars, df = 3) , data = training)
+summary(gammod)
+gam_predict = predict(gammod, newdata = testing)
+gam_MSE = round(sqrt(mean((testing$SalePrice - gam_predict)^2)), 4)
+print(paste("Test MSE of GAM: ", gam_MSE))
+```
 
 
 
