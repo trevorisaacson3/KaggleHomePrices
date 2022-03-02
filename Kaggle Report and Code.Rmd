@@ -238,7 +238,7 @@ finalRMSEsplines %>%
   kable()
 ```
 
-# GAM Model       
+## GAM Model       
 |    After fitting some regression splines, the next model we attempted was a General Additive Model or GAM.  In general, this model is used for nonlinear relationships with splines on various variables.  All available predictors were used to fit the GAM, along with the splines calculated above.  There is definitely some improvement over the baseline as the RMSE = 0.1227 was below the baseline of 0.14.  The final RMSE can be shifted depending on the which splines are used but, in general, this RMSE number is an improvement from our baseline model.  The GAM combined with the splines is currently our best performing regression method.  
 
 ```{r echo = FALSE}
@@ -276,7 +276,7 @@ plot(tree.cv$size, sqrt(tree.cv$dev / nrow(training)), type = "b",
 
 |   Before we start bagging we need to make sure to change all of our character values to factors. This is because our gbm model stand for gaussian bagging model and it doesn't take characters. In bagging we do it a little bit different than trees. We are not going to start out with a very basic model and prune it, we are instead going to use some of the information we learned from the previous trees. For example, our value for cv.folds in our gaussian bagging model holds the value of 7. This was chosen based off our CV.RMSE values in our graph above as 7 was around when the value of tree sizes begun to fall off and not change too significantly. The value shrinkage we left at the basic value of .1 as we didn't want to unnecessarily use too many trees. We set our trees at a large value of `r nrow(trainData)` in order for the bagging model to use as many trees as necessary (most of the time it sets around 400-1000 before not reaching the shrinkage parameter). Finally, the last variable we used in our model was 'n.minobsinnode'; this was used as a constraint on the minimum number of observations in the terminal nodes of the tree. 
 
-```{r message = FALSE, warning = FALSE}
+```{r message = FALSE, warning = FALSE, fig.width=6, fig.height=4}
 training <- training %>% mutate_if(is.character, as.factor)
 testing <- testing %>% mutate_if(is.character, as.factor)
 mino <- c(1:15)
