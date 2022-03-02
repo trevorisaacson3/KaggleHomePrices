@@ -151,7 +151,8 @@ linear = lm(SalePrice ~ ., data = training)
 # summary(linear)
 linear_predict = predict(linear, newdata = testing, type = "response")
 MSE_testing = (testing$SalePrice - linear_predict)^2
-print(paste("RMSE of Testing Set: ", round(sqrt(mean(MSE_testing)), 3)))
+linear_MSE = round(sqrt(mean(MSE_testing)), 3)
+print(paste("RMSE of Testing Set: ", linear_MSE))
 ```
 
 
@@ -257,7 +258,12 @@ predplot(gammod, ncomp = 15, line =TRUE, line.col ="red", line.lty ="dashed", ma
 ```
 
 
+```{r}
+# gam_test = predict(gammod, testData)
 
+
+
+```
 
 
 
@@ -271,8 +277,8 @@ tree <- tree(SalePrice ~ ., data = training); summary(tree)
 plot(tree); text(tree)
 
 pred <- predict(tree, testing)
-print(paste("Test RMSE of Tree: ", round(sqrt(mean((testing$SalePrice - pred)^2)), 4)))
-
+tree_MSE = round(sqrt(mean((testing$SalePrice - pred)^2)), 4)
+print(paste("Test RMSE of Tree: ", tree_MSE))
 
 tree.cv <- cv.tree(tree)
 plot(tree.cv$size, sqrt(tree.cv$dev / nrow(training)), type = "b",
@@ -319,13 +325,19 @@ output <- randomForest(SalePrice ~ ., data = train, mtry = ncol(train)/3, import
 
 pred <- predict(output, test, type = "response")
 
-rmse <- sqrt(mean((test$SalePrice - pred)^2))
-print(paste("Test RMSE for Random Forest", rmse))
+rf_MSE <- sqrt(mean((test$SalePrice - pred)^2))
+print(paste("Test RMSE for Random Forest", rf_MSE))
 ```
 
 
 ## Conclusion
+```{r}
+method = c("Linear Regression", "PCR", "PLS", "Splines", "GAM", "Trees", "Random Forest")
+MSEnumbers = c(linear_MSE, 0, 0, df_X2ndFlrSF[1,2], gam_MSE, tree_MSE, rf_MSE)
 
+finalMSE = data.frame(Methods = method, RMSE = round(MSEnumbers,4), RMSE_Dollars = round(exp(MSEnumbers), 2))
+kable(finalMSE)
+```
 
 
 
