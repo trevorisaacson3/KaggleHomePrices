@@ -345,7 +345,7 @@ finalMSE = data.frame(Methods = method, RMSE = round(MSEnumbers,4), RMSE_Dollars
 kable(finalMSE)
 ```
 
-|   After fitting our model to the proper testData provided by Kaggle, we built our csv file and submitted it to the competition.  We thought bagging would have proven to be our best bet for placement in the competition. It yielded our lowest rmse value using our training and testing data at `r min(rmse)`.  Based off of our training and testing above we were predicting placing around 100th place with a RMSE of `r min(rmse)`. Because the dataset was different than what we were testing on, it could have been anything, but we were hopeful. After submission, we ended with a RMSE value of .135 placing around 1000th place.  
+|   After fitting our model to the proper testData provided by Kaggle, we built our csv file and submitted it to the competition.  We thought bagging would have proven to be our best bet for placement in the competition. It yielded our lowest rmse value using our training and testing data at `r min(bag_rmse)`.  Based off of our training and testing above we were predicting placing around 100th place with a RMSE of `r min(bag_rmse)`. Because the dataset was different than what we were testing on, it could have been anything, but we were hopeful. After submission, we ended with a RMSE value of .135 placing around 1000th place.  
 
 |   With over 4,410 teams competing in this competition, we happened to beat ~75% of the other teams.  Without overfitting, we think our results are accurate enough to potentially continue further research.  
 
