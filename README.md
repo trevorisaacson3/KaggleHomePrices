@@ -8,4 +8,3 @@ Kaggle Report and Cod.Rmd: Code used to create final paper
 data_descritption.txt: Descriptions of variables and values provided by Kaggle  
 train.csv: training data  
 test.csv: testing data using for Kaggle Submission scores   
-bag_final: final predictions used in competition
