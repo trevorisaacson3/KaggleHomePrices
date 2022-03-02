@@ -70,7 +70,7 @@ ggplot(data = trainData, aes(sample = log(SalePrice))) +
 
 
 
-|   Additionally, after looking at several different variables we noticed there were some containing upwards of 1400 NA or 0 values in a dataset of `r nrow(testData)` observations. For some of them it made sense; such as fireplaces or half baths, a 0 value in this place just means the house simply doesn't have it in which many houses may not. In others however we noticed an issue could arise in fitting our models. We got rid of some of the values that were character values that had over 1000 of 1460 observations being NA. We figured this many values with NAs proved no relevance to our models, and only clogged up our GAMs and trees with unnecessary fittings. The other changes we made to our dataset was getting rid of NAs and categorizing a value of 'other' for variables with less than 5 values including Neighborhood, Exterior1st and Exterior2nd. Otherwise, we split our training data into a training and testing set 70% to 30% in order to check our models before submitting the final testing data to Kaggle.
+|   Additionally, after looking at several different variables we noticed there were some containing upwards of 1400 NA or 0 values in a dataset of `r nrow(trainData)` observations. For some of them it made sense; such as fireplaces or half baths, a 0 value in this place just means the house simply doesn't have it in which many houses may not. In others however we noticed an issue could arise in fitting our models. We got rid of some of the values that were character values that had over 1000 of 1460 observations being NA. We figured this many values with NAs proved no relevance to our models, and only clogged up our GAMs and trees with unnecessary fittings. The other changes we made to our dataset was getting rid of NAs and categorizing a value of 'other' for variables with less than 5 values including Neighborhood, Exterior1st and Exterior2nd. Otherwise, we split our training data into a training and testing set 70% to 30% in order to check our models before submitting the final testing data to Kaggle.
 
 
 ```{r}
@@ -229,7 +229,7 @@ print(paste("Test RMSE of GAM: ", gam_MSE))
 |   Below is a measured versus predicted plot.  In general, our predictions follow the direction of the red target line with most points centered around the line.  There are no visible splits in the predicted values and the measured responses.  This compliments our lower RMSE score.  
 
 ```{r fig.width=6, fig.height=4}
-predplot(gammod, ncomp = 15, line =TRUE, line.col ="red", line.lty ="dashed", main = "GAN Predictions")
+predplot(gammod, ncomp = 15, line =TRUE, line.col ="red", line.lty ="dashed", main = "GAM Predictions")
 ```
 
 
@@ -247,7 +247,7 @@ tree <- tree(SalePrice ~ ., data = training); summary(tree)
 plot(tree); text(tree)
 
 pred <- predict(tree, testing)
-sqrt(mean((testing$SalePrice - pred)^2))
+print(paste("Test RMSE of Tree: ", round(sqrt(mean((testing$SalePrice - pred)^2)), 4)))
 
 
 tree.cv <- cv.tree(tree)
@@ -255,11 +255,11 @@ plot(tree.cv$size, sqrt(tree.cv$dev / nrow(training)), type = "b",
      xlab = "Tree Size", ylab = "CV-RMSE")
 ```
 
-|   Before we start bagging we need to make sure to change all of our character values to factors. This is because our gbm model stand for gaussian bagging model and it doesn't take characters. In bagging we do it a little bit different than trees. We are not going to start out with a very basic model and prune it, we are instead going to use some of the information we learned from the previous trees. For example, our value for cv.folds in our gaussian bagging model holds the value of 7. This was chosen based off our CV.RMSE values in our graph above as 7 was around when the value of tree sizes begun to fall off and not change too significantly. The value shrinkage we left at the basic value of .1 as we didn't want to unneccesarily use too many trees. We set our trees at a large value of `r nrow(trainData)` in order for the bagging model to use as many trees as necessary (most of the time it sets aound 400-1000 before not reaching the shrinkage paramater). Finally, the last variable we used in our model was 'n.minobsinnode'; this was used as a constraint on the minimum number of observations in the terminal nodes of the tree. In order to find the best model we looped through n.minobsinnode being 1 through 15 and reported the best RMSE value. Below we will return three different graph. The first being a graph depicting the RMSE values of each bagging model. From this graph we can see that a value of 5 for our n.minobsinnode would return the lowest RMSE. Knowing this, we redid the model with this value in place and graphed the actual values of SalePrice (depicted in blue) and where are model went through predicting. 
+|   Before we start bagging we need to make sure to change all of our character values to factors. This is because our gbm model stand for gaussian bagging model and it doesn't take characters. In bagging we do it a little bit different than trees. We are not going to start out with a very basic model and prune it, we are instead going to use some of the information we learned from the previous trees. For example, our value for cv.folds in our gaussian bagging model holds the value of 7. This was chosen based off our CV.RMSE values in our graph above as 7 was around when the value of tree sizes begun to fall off and not change too significantly. The value shrinkage we left at the basic value of .1 as we didn't want to unnecessarily use too many trees. We set our trees at a large value of `r nrow(trainData)` in order for the bagging model to use as many trees as necessary (most of the time it sets around 400-1000 before not reaching the shrinkage parameter). Finally, the last variable we used in our model was 'n.minobsinnode'; this was used as a constraint on the minimum number of observations in the terminal nodes of the tree. In order to find the best model we looped through n.minobsinnode being 1 through 15 and reported the best RMSE value. Below we will return three different graph. The first being a graph depicting the RMSE values of each bagging model. From this graph we can see that a value of 5 for our n.minobsinnode would return the lowest RMSE. Knowing this, we redid the model with this value in place and graphed the actual values of SalePrice (depicted in blue) and where are model went through predicting. 
 
-```{r}
-training <- training %>% mutate_if(is_character, as.factor)
-testing <- testing %>% mutate_if(is_character, as.factor)
+```{r message = FALSE warning = FALSE}
+training <- training %>% mutate_if(is.character, as.factor)
+testing <- testing %>% mutate_if(is.character, as.factor)
 mino <- c(1:15)
 rmse <- rep(NA, length(mino))
 
@@ -283,17 +283,23 @@ plot(x_ax, testing$SalePrice, col="blue", pch=20, cex=.9)
 lines(x_ax, pred, col="red", pch=20, cex=.9) 
 ```
 
-|   Just like with our trees we started with the most basic model we could in random forests, although we did add a few more parameters. One including the mtry, defined as the number of variables sampled as candidates at each split. We chose this to be the number of our columns divided by 3 because as stated in The Elements of Statistical Learning: Data Mining, Inference, and Prediction written by Trevor Hastie, Robert Tibshirani, Jerome Friedman, the text stated, "For regression, the default value for m is ⌊p/3⌋ and the minimum node size is five" (Haste 610). In doing our forest model we got a RMSE value of .13, considering this isn't as small as our bagging was and the only reason to do forests over bagging is because of overfitting we can conclude that our bagging from before holds our best model. 
+|   Just like with our trees we started with the most basic model we could in random forests, although we did add a few more parameters. One including the mtry, defined as the number of variables sampled as candidates at each split. We chose this to be the number of our columns divided by 3 because as stated in The Elements of Statistical Learning: Data Mining, Inference, and Prediction written by Trevor Hastie, Robert Tibshirani, Jerome Friedman, the text stated, "For regression, the default value for m is [p/3] and the minimum node size is five" (Haste 610). In doing our forest model we got a RMSE value of .13, considering this isn't as small as our bagging was and the only reason to do forests over bagging is because of overfitting we can conclude that our bagging from before holds our best model. 
 
 ```{r, echo = FALSE}
-training <- training %>% mutate_if(is.factor, as.character)
-testing <- testing %>% mutate_if(is.factor, as.character)
+# training <- training %>% mutate_if(is.factor, as.character)
+# testing <- testing %>% mutate_if(is.factor, as.character)
+# training <- training %>% mutate_if(is.character, as.factor)
+# testing <- testing %>% mutate_if(is.character, as.factor)
 
-output <- randomForest(SalePrice ~ ., data = training, mtry = ncol(training)/3, importance = TRUE)
+# str(training)
+# str(testing)
 
-pred <- predict(output, newdata = testing)
+# output <- randomForest(SalePrice ~ ., data = training, mtry = ncol(training)/3, importance = TRUE)
 
-rmse <- sqrt(mean((testing$SalePrice - pred)^2)); rmse
+# pred <- predict(output, testing, type = "response")
+
+#rmse <- sqrt(mean((testing$SalePrice - pred)^2))
+#rmse
 ```
 
 
