@@ -101,11 +101,35 @@ trainData = trainData %>%
 # cond2 <- colSums(trainData == is.integer(0)) # check int variables for values equal to 0
 # colSums(is.na(trainData))
 ```
+```{r}
+testData = testData %>%
+  select(-c(Utilities, Condition2, RoofMatl)) %>%
+  mutate(FullBath = factor(FullBath)) %>%
+  mutate(HalfBath = factor(HalfBath)) %>%
+  mutate(Fireplaces = factor(Fireplaces)) %>%
+  mutate(BsmtHalfBath = factor(BsmtHalfBath)) %>%
+  mutate(FireplaceQu = as.character(FireplaceQu), Electrical = as.character(Electrical), BsmtQual = as.character(BsmtQual), BsmtCond = as.character(BsmtCond)) %>%
+  mutate(BsmtExposure = as.character(BsmtExposure), BsmtFinType1 = as.character(BsmtFinType1), BsmtFinType2 = as.character(BsmtFinType2)) %>%
+  mutate(GarageType = as.character(GarageType), GarageFinish = as.character(GarageFinish), GarageCond = as.character(GarageCond), GarageQual = as.character(GarageQual)) %>%
+  mutate(MasVnrType = as.character(MasVnrType))
 
+cond <- (colSums(is.na(testData)) < 1000) # eliminates variables with over 1000 NA values
+testData <- testData[, cond, drop = TRUE]
+  
+testData = testData %>%
+  mutate(across(where(is.character), replace_na, "None")) %>%
+  mutate(across(where(is.integer), replace_na, 0))
+```
 
 ```{r}
 # some variables have values with less than 5 values, so I bundled them into "Other"
 trainData = trainData %>%
+  mutate(Condition1 = fct_lump(Condition1, n = 5, other_level = "Other")) %>%
+  mutate(Neighborhood = fct_lump(Neighborhood, n = 5, other_level = "Other")) %>%
+  mutate(Exterior1st = fct_lump(Exterior1st, n = 5, other_level = "Other")) %>%
+  mutate(Exterior2nd = fct_lump(Exterior2nd, n = 5, other_level = "Other"))
+  
+testData = testData %>%
   mutate(Condition1 = fct_lump(Condition1, n = 5, other_level = "Other")) %>%
   mutate(Neighborhood = fct_lump(Neighborhood, n = 5, other_level = "Other")) %>%
   mutate(Exterior1st = fct_lump(Exterior1st, n = 5, other_level = "Other")) %>%
