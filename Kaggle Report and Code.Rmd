@@ -34,23 +34,16 @@ testData = read.csv("test.csv")
 ```
 
 ## Introduction
-|   Imagine you're looking to purchase a home in the near future.  How do you know the price of that home is accurate and fair.  What factors or variables are you looking at to gauge the final price?  For many, home prices are a number associated with a few key variables.  For example, many buyers are looking at the number of bedrooms, bathrooms and the color of the fence.  What other things affect the price of a home?  Location, building materials, condition and quality are just a few that could potentially impact the price of a house.  In this Kaggle competition, we look at home prices in Ames, Iowa and over 80 variables associated with those homes.  
-
-
-
+|   Imagine you're looking to purchase a home in the near future.  How do you know the price of that home is accurate and fair.  What factors or variables are you looking at to gauge the final price?  For many, home prices are a number associated with a few key variables.  For example, many buyers are looking at the number of bedrooms, bathrooms and the color of the fence.  What other things affect the price of a home?  Location, building materials, condition and quality are just a few that could potentially impact the price of a house.  In this Kaggle competition, we look at home prices in Ames, Iowa and 79 variables associated with those homes.  These 79 variables describe just about everything regarding these homes.  
 
 
 ## Problem Discription
-|   Can we accurately predict the price of a home?  
-
-
+|   The problem is quite clear, can we accurately predict the price of a home?  Given a lengthy set of variables regarding a house, are we able to predict the final sale price of that home?  Using several different regression techniques, which method is able to best predict the final sale price and is it accurate enough to potentially use?  
 
 
 ## Data Cleaning
 
 |   Because the original sales price data is very heavily skewed, we needed to log transform the prices.  As shown in the histogram, we have a very heavy right tail because there are a  some listings with very high prices compared to the median price of $180,921 (blue line).  This non-normal shape and distribution is clearly evident in the Q-Q plot.  By applying a log transformation, we fix this problem. 
-|   Additionally, after looking at several different variables we noticed there were some containing upwards of 1400 NA or 0 values in a dataset of `r nrow(testData)` observations. For some of them it made sense; such as fireplaces or half baths, a 0 value in this place just means the house simply doesn't have it in which many houses may not. In others however we noticed an issue could arise in fitting our models. We got rid of some of the values that were character values that had over 1000 of 1460 observations being NA. We figured this many values with NAs proved no relevance to our models, and only clogged up our gamms and trees with unncessary fittings. The other changes we made to our datasets was getting rid of NAs and categorizing a value of 'other' for variables with less than 5 values including Neighborhood, Exterior1st and Exterior2nd. Otherwise we split our trianing data into a training and testing set 70% to 30% in order to check our models before submitting the final testing data to kaggle.
-
 
 ```{r echo = FALSE, message=FALSE, fig.width=5, fig.height=3,  fig.show='hold', out.width="50%"}
 ggplot(trainData, aes(x=SalePrice)) + 
@@ -74,6 +67,11 @@ ggplot(trainData, aes(x=log(SalePrice))) +
 ggplot(data = trainData, aes(sample = log(SalePrice))) +
   stat_qq() + stat_qq_line() + ggtitle("Q-Q Plot of Log Sale Price") 
 ```
+
+
+
+|   Additionally, after looking at several different variables we noticed there were some containing upwards of 1400 NA or 0 values in a dataset of `r nrow(testData)` observations. For some of them it made sense; such as fireplaces or half baths, a 0 value in this place just means the house simply doesn't have it in which many houses may not. In others however we noticed an issue could arise in fitting our models. We got rid of some of the values that were character values that had over 1000 of 1460 observations being NA. We figured this many values with NAs proved no relevance to our models, and only clogged up our GAMs and trees with unnecessary fittings. The other changes we made to our dataset was getting rid of NAs and categorizing a value of 'other' for variables with less than 5 values including Neighborhood, Exterior1st and Exterior2nd. Otherwise, we split our training data into a training and testing set 70% to 30% in order to check our models before submitting the final testing data to Kaggle.
+
 
 ```{r}
 ## Changing Dataset
@@ -123,15 +121,14 @@ testing = trainData[-trn, ]
 ```
 
 ## Multiple Linear Regression           
-|   To begin, we started with a simple multiple linear regression model.  We wanted to give ourselves a baseline root mean squared error value and because linear regression is the easiest to apply and interpret, we determined this is the best place to start.  The model is fit using 73 variables and the training set.  
+|   To begin, we started with a simple multiple linear regression model.  We wanted to give ourselves a baseline root mean squared error value and because linear regression is the easiest to apply and interpret, we determined this is the best place to start.  The model is fit using 73 variables and the training set.  It reported a RMSE of 0.14 and some statistically significant variables include OverallCond, OveralQual, X1stFlrSF, X2ndFlrSF, WoodDeckSF, ScreenPorch and GarageCars.
 ```{r}
 linear = lm(SalePrice ~ ., data = training)
-summary(linear)
+# summary(linear)
 linear_predict = predict(linear, newdata = testing, type = "response")
 MSE_testing = (testing$SalePrice - linear_predict)^2
-print(paste("MSE of Testing Set: ", round(sqrt(mean(MSE_testing)), 3)))
+print(paste("RMSE of Testing Set: ", round(sqrt(mean(MSE_testing)), 3)))
 ```
-
 
 
 ## Splines        
@@ -256,8 +253,7 @@ plot(tree.cv$size, sqrt(tree.cv$dev / nrow(training)), type = "b",
 
 |   Before we start bagging we need to make sure to change all of our character values to factors. This is because our gbm model stand for gaussian bagging model and it doesn't take characters. In bagging we do it a little bit different than trees. We are not going to start out with a very basic model and prune it, we are instead going to use some of the information we learned from the previous trees. For example, our value for cv.folds in our gaussian bagging model holds the value of 7. This was chosen based off our CV.RMSE values in our graph above as 7 was around when the value of tree sizes begun to fall off and not change too significantly. The value shrinkage we left at the basic value of .1 as we didn't want to unneccesarily use too many trees. We set our trees at a large value of `r nrow(trainData)` in order for the bagging model to use as many trees as necessary (most of the time it sets aound 400-1000 before not reaching the shrinkage paramater). Finally, the last variable we used in our model was 'n.minobsinnode'; this was used as a constraint on the minimum number of observations in the terminal nodes of the tree. In order to find the best model we looped through n.minobsinnode being 1 through 15 and reported the best RMSE value. Below we will return three different graph. The first being a graph depicting the RMSE values of each bagging model. From this graph we can see that a value of 5 for our n.minobsinnode would return the lowest RMSE. Knowing this, we redid the model with this value in place and graphed the actual values of SalePrice (depicted in blue) and where are model went through predicting. 
 
-```{r, echo = FALSE}
-set.seed(478)
+```{r}
 training <- training %>% mutate_if(is_character, as.factor)
 testing <- testing %>% mutate_if(is_character, as.factor)
 mino <- c(1:15)
@@ -265,7 +261,7 @@ rmse <- rep(NA, length(mino))
 
 for(i in mino) {
   model_gbm <- gbm(SalePrice ~ ., data = training, cv.folds = 7, shrinkage = .1, 
-                   n.minobsinnode = i, n.trees = nrow(train), verbose = FALSE)
+                   n.minobsinnode = i, n.trees = nrow(training), verbose = FALSE)
   
   pred <- predict.gbm(model_gbm, testing)
   rmse[i] <- RMSE(testing$SalePrice, pred)
@@ -283,11 +279,11 @@ plot(x_ax, testing$SalePrice, col="blue", pch=20, cex=.9)
 lines(x_ax, pred, col="red", pch=20, cex=.9) 
 ```
 
-|   Just like with our trees we started with the most basic model we could in random forests. Although we did add a few more paramaters. One including the mtry, defined as the number of variables sampled as candidates at each split. We chose this to be the number of our columns divided by 3 because as stated in The Elements of Statistical Learning: Data Mining, Inference, and Prediction written by Trevor Hastie, Robert Tibshirani, Jerome Friedman, the text stated, "For regression, the default value for m is ⌊p/3⌋ and the minimum node size is five" (Haste 610). In doing our forest model we got a RMSE value of .13, considering this isn't as small as our bagging was and the only reason to do forests over bagging is because of overfitting we can conclude that our bagging from before holds our best model. 
+|   Just like with our trees we started with the most basic model we could in random forests, although we did add a few more parameters. One including the mtry, defined as the number of variables sampled as candidates at each split. We chose this to be the number of our columns divided by 3 because as stated in The Elements of Statistical Learning: Data Mining, Inference, and Prediction written by Trevor Hastie, Robert Tibshirani, Jerome Friedman, the text stated, "For regression, the default value for m is ⌊p/3⌋ and the minimum node size is five" (Haste 610). In doing our forest model we got a RMSE value of .13, considering this isn't as small as our bagging was and the only reason to do forests over bagging is because of overfitting we can conclude that our bagging from before holds our best model. 
 
 ```{r, echo = FALSE}
-training <- training %>% mutate_if(is.factor, as.character)
-testing <- testing %>% mutate_if(is.factor, as.character)
+#training <- training %>% mutate_if(is.factor, as.character)
+#testing <- testing %>% mutate_if(is.factor, as.character)
 
 output <- randomForest(SalePrice ~ ., data = training, mtry = ncol(training)/3, importance = TRUE)
 
