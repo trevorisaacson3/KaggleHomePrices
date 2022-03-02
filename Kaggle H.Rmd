@@ -1,0 +1,678 @@
+---
+title: "Kaggle: House Prices with Advanced Regression Techniques"
+author: "Trevor Isaacson, Hawas Alsadeed, Evan Kessler"
+date: "2/28/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+set.seed(478)
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+library(ggplot2)
+library(tidyverse)
+library(tidyr)
+library(rmarkdown)
+library(e1071)
+library(glmnet)
+library(knitr)
+library(leaps)
+library(tree)
+library(dplyr)
+library(caret)
+library(gbm)
+library(randomForest)
+library(GGally)
+library(pls)
+library(splines)
+library(boot)
+library(fastDummies)
+library(pls)
+```
+
+```{r}
+trainData = read.csv("train.csv")
+testData = read.csv("test.csv")
+```
+
+## Introduction
+|   Imagine you're looking to purchase a home in the near future.  How do you know the price of that home is accurate and fair.  What factors or variables are you looking at to gauge the final price?  For many, home prices are a number associated with a few key variables.  For example, many buyers are looking at the number of bedrooms, bathrooms and the color of the fence.  What other things affect the price of a home?  Location, building materials, condition and quality are just a few that could potentially impact the price of a house.  In this Kaggle competition, we look at home prices in Ames, Iowa and 79 variables associated with those homes.  These 79 variables describe just about everything regarding these homes.  
+
+
+## Problem Discription
+|   The problem is quite clear, can we accurately predict the price of a home?  Given a lengthy set of variables regarding a house, are we able to predict the final sale price of that home?  Using several different regression techniques, which method is able to best predict the final sale price and is it accurate enough to potentially use?  
+
+
+## Data Cleaning
+
+|   Because the original sales price data is very heavily skewed, we needed to log transform the prices.  As shown in the histogram, we have a very heavy right tail because there are a  some listings with very high prices compared to the median price of $180,921 (blue line).  This non-normal shape and distribution is clearly evident in the Q-Q plot.  By applying a log transformation, we fix this problem. 
+
+```{r echo = FALSE, message=FALSE, fig.width=5, fig.height=3,  fig.show='hold', out.width="50%"}
+ggplot(trainData, aes(x=SalePrice)) + 
+ geom_histogram(aes(y=..density..), bins = 35, colour="black", fill="white") +
+ geom_density(alpha=.2, fill="#FF6666") + 
+ geom_vline(xintercept = median(trainData$SalePrice), color = "blue", lty = 2) +
+ labs(x = "Sale Price", y = "", title = "Distribution of Sale Price")
+ggplot(data = trainData, aes(sample = SalePrice)) +
+  stat_qq() + stat_qq_line() + ggtitle("Q-Q Plot of Original Sale Price") 
+```
+
+
+```{r echo = FALSE, message=FALSE, fig.width=5, fig.height=3,  fig.show='hold', out.width="50%"}
+ggplot(trainData, aes(x=log(SalePrice))) + 
+ geom_histogram(aes(y=..density..), bins = 35, colour="black", fill="white") +
+ geom_density(alpha=.2, fill="#FF6666") + 
+ geom_vline(xintercept = median(log(trainData$SalePrice)), color = "blue", lty = 2) +
+ labs(x = "Sale Price", y = "", title = "Log Distribution of Sale Price")
+ggplot(data = trainData, aes(sample = log(SalePrice))) +
+  stat_qq() + stat_qq_line() + ggtitle("Q-Q Plot of Log Sale Price") 
+```
+
+
+
+|   Additionally, after looking at several different variables we noticed there were some containing upwards of 1400 NA or 0 values in a dataset of `r nrow(trainData)` observations. For some of them it made sense; such as fireplaces or half baths, a 0 value in this place just means the house simply doesn't have it in which many houses may not. In others however we noticed an issue could arise in fitting our models. We got rid of some of the values that were character values that had over 1000 of 1460 observations being NA. We figured this many values with NAs proved no relevance to our models, and only clogged up our GAMs and trees with unnecessary fittings. The other changes we made to our dataset was getting rid of NAs and categorizing a value of 'other' for variables with less than 5 values including Neighborhood, Exterior1st and Exterior2nd. Otherwise, we split our training data into a training and testing set 70% to 30% in order to check our models before submitting the final testing data to Kaggle.
+
+
+```{r}
+## Changing Dataset
+# Easier to chnage values if character instead of factor 
+trainData = trainData %>%
+  select(-c(Id, Utilities, Condition2, RoofMatl)) %>%
+  mutate(SalePrice = log(SalePrice)) %>%
+  mutate(FullBath = factor(FullBath)) %>%
+  mutate(HalfBath = factor(HalfBath)) %>%
+  mutate(Fireplaces = factor(Fireplaces)) %>%
+  mutate(BsmtHalfBath = factor(BsmtHalfBath)) %>%
+  mutate(FireplaceQu = as.character(FireplaceQu), Electrical = as.character(Electrical), BsmtQual = as.character(BsmtQual), BsmtCond = as.character(BsmtCond)) %>%
+  mutate(BsmtExposure = as.character(BsmtExposure), BsmtFinType1 = as.character(BsmtFinType1), BsmtFinType2 = as.character(BsmtFinType2)) %>%
+  mutate(GarageType = as.character(GarageType), GarageFinish = as.character(GarageFinish), GarageCond = as.character(GarageCond), GarageQual = as.character(GarageQual)) %>%
+  mutate(MasVnrType = as.character(MasVnrType))
+  
+cond <- (colSums(is.na(trainData)) < 1000) # eliminates variables with over 1000 NA values
+trainData <- trainData[, cond, drop = TRUE]
+  
+trainData = trainData %>%
+  mutate(across(where(is.character), replace_na, "None")) %>%
+  mutate(across(where(is.integer), replace_na, 0))
+# colSums(is.na(trainData))
+  
+# cond2 <- colSums(trainData == is.integer(0)) # check int variables for values equal to 0
+# colSums(is.na(trainData))
+```
+
+```{r}
+testData = testData %>%
+  select(-c(Utilities, Condition2, RoofMatl)) %>%
+  mutate(FullBath = factor(FullBath)) %>%
+  mutate(HalfBath = factor(HalfBath)) %>%
+  mutate(Fireplaces = factor(Fireplaces)) %>%
+  mutate(BsmtHalfBath = factor(BsmtHalfBath)) %>%
+  mutate(FireplaceQu = as.character(FireplaceQu), Electrical = as.character(Electrical), BsmtQual = as.character(BsmtQual), BsmtCond = as.character(BsmtCond)) %>%
+  mutate(BsmtExposure = as.character(BsmtExposure), BsmtFinType1 = as.character(BsmtFinType1), BsmtFinType2 = as.character(BsmtFinType2)) %>%
+  mutate(GarageType = as.character(GarageType), GarageFinish = as.character(GarageFinish), GarageCond = as.character(GarageCond), GarageQual = as.character(GarageQual)) %>%
+  mutate(MasVnrType = as.character(MasVnrType))
+cond <- (colSums(is.na(testData)) < 1000) # eliminates variables with over 1000 NA values
+testData <- testData[, cond, drop = TRUE]
+  
+testData = testData %>%
+  mutate(across(where(is.character), replace_na, "None")) %>%
+  mutate(across(where(is.integer), replace_na, 0))
+```
+
+```{r}
+# some variables have values with less than 5 values, so I bundled them into "Other"
+trainData = trainData %>%
+  mutate(Condition1 = fct_lump(Condition1, n = 5, other_level = "Other")) %>%
+  mutate(Neighborhood = fct_lump(Neighborhood, n = 5, other_level = "Other")) %>%
+  mutate(Exterior1st = fct_lump(Exterior1st, n = 5, other_level = "Other")) %>%
+  mutate(Exterior2nd = fct_lump(Exterior2nd, n = 5, other_level = "Other"))
+  
+testData = testData %>%
+  mutate(Condition1 = fct_lump(Condition1, n = 5, other_level = "Other")) %>%
+  mutate(Neighborhood = fct_lump(Neighborhood, n = 5, other_level = "Other")) %>%
+  mutate(Exterior1st = fct_lump(Exterior1st, n = 5, other_level = "Other")) %>%
+  mutate(Exterior2nd = fct_lump(Exterior2nd, n = 5, other_level = "Other"))
+```
+
+
+```{r}
+# split into training and testing set
+trn = sample(seq_len(nrow(trainData)), 0.7* round(nrow(trainData)))
+training = trainData[trn, ]
+testing = trainData[-trn, ]
+```
+
+## Multiple Linear Regression           
+|   To begin, we started with a simple multiple linear regression model.  We wanted to give ourselves a baseline root mean squared error value and because linear regression is the easiest to apply and interpret, we determined this is the best place to start.  The model is fit using 73 variables and the training set.  It reported a RMSE of 0.14 and some statistically significant variables include OverallCond, OveralQual, X1stFlrSF, X2ndFlrSF, WoodDeckSF, ScreenPorch and GarageCars.
+
+```{r}
+linear = lm(SalePrice ~ ., data = training)
+# summary(linear)
+linear_predict = predict(linear, newdata = testing, type = "response")
+MSE_testing = (testing$SalePrice - linear_predict)^2
+linear_MSE = round(sqrt(mean(MSE_testing)), 3)
+print(paste("RMSE of Testing Set: ", linear_MSE))
+```
+
+
+## Splines        
+|   After finding a baseline using linear regression, the next idea was to try fitting regression splines. When looking at some of the more explanatory variables, it was decided to perform a spline on the variables OverallCond, GarageCars, X1stFlrSF and X2ndFlrSF.  The best performing spline was X2ndFlrSF with degrees of freedom of 2.  However, none of the splines performed remotely close to our baseline.  This was expected because there are over 70 variables in the baseline model and a single spline of a significant variable isn't likely to perform better.  
+```{r}
+#spline on X2ndFlrSF
+fit0 <- glm(SalePrice ~ bs(X2ndFlrSF, df = 2), data = training)
+cvs0 <- cv.glm(testing, fit0, K = 10)$delta[1]
+fit <- glm(SalePrice ~ bs(X2ndFlrSF, df = 3), data = training)
+cvs <- cv.glm(testing, fit, K = 10)$delta[1]
+fit2 <- glm(SalePrice ~ bs(X2ndFlrSF, df = 4), data = training)
+cvs2 <- cv.glm(testing, fit2, K = 10)$delta[1]
+fit3 <- glm(SalePrice ~ bs(X2ndFlrSF, df = 5), data = training)
+cvs3 <- cv.glm(testing, fit3, K = 10)$delta[1]
+  
+degfree <- c(2, 3, 4, 5)
+cv <- c(cvs0, cvs, cvs2, cvs3)
+df_X2ndFlrSF <- data.frame(degfree, sqrt(cv))
+# df_X2ndFlrSF
+#spline on OverallCond
+fit0 <- glm(SalePrice ~ bs(OverallCond, df = 2), data = training)
+cvs0 <- cv.glm(testing, fit0, K = 10)$delta[1]
+fit <- glm(SalePrice ~ bs(OverallCond, df = 3), data = training)
+cvs <- cv.glm(testing, fit, K = 10)$delta[1]
+fit2 <- glm(SalePrice ~ bs(OverallCond, df = 4), data = training)
+cvs2 <- cv.glm(testing, fit2, K = 10)$delta[1]
+fit3 <- glm(SalePrice ~ bs(OverallCond, df = 5), data = training)
+cvs3 <- cv.glm(testing, fit3, K = 10)$delta[1]
+  
+degfree <- c(2, 3, 4, 5)
+cv <- c(cvs0, cvs, cvs2, cvs3)
+df_overallCond <- data.frame(degfree, sqrt(cv))
+# df_overallCond
+#spline on X1stFlrSF
+fit0 <- glm(SalePrice ~ bs(X1stFlrSF, df = 2), data = training)
+cvs0 <- cv.glm(testing, fit0, K = 10)$delta[1]
+fit <- glm(SalePrice ~ bs(X1stFlrSF, df = 3), data = training)
+cvs <- cv.glm(testing, fit, K = 10)$delta[1]
+fit2 <- glm(SalePrice ~ bs(X1stFlrSF, df = 4), data = training)
+cvs2 <- cv.glm(testing, fit2, K = 10)$delta[1]
+fit3 <- glm(SalePrice ~ bs(X1stFlrSF, df = 5), data = training)
+cvs3 <- cv.glm(testing, fit3, K = 10)$delta[1]
+  
+degfree <- c(2, 3, 4, 5)
+cv <- c(cvs0, cvs, cvs2, cvs3)
+df_X1stFlrSF <- data.frame(degfree, sqrt(cv))
+# df_X1stFlrSF
+#spline on GarageCars
+fit0 <- glm(SalePrice ~ bs(GarageCars, df = 2), data = training)
+cvs0 <- cv.glm(testing, fit0, K = 10)$delta[1]
+fit <- glm(SalePrice ~ bs(GarageCars, df = 3), data = training)
+cvs <- cv.glm(testing, fit, K = 10)$delta[1]
+fit2 <- glm(SalePrice ~ bs(GarageCars, df = 4), data = training)
+cvs2 <- cv.glm(testing, fit2, K = 10)$delta[1]
+fit3 <- glm(SalePrice ~ bs(GarageCars, df = 5), data = training)
+cvs3 <- cv.glm(testing, fit3, K = 10)$delta[1]
+  
+degfree <- c(2, 3, 4, 5)
+cv <- c(cvs0, cvs, cvs2, cvs3)
+df_GarageCars <- data.frame(degfree, sqrt(cv))
+# df_GarageCars
+splines = c("X2ndFlrSF", "OverallCond", "X1stFlrSF", "GarageCars")
+RMSEnumbers = c(df_X2ndFlrSF[1,2], df_overallCond[2,2], df_X1stFlrSF[4, 2], df_GarageCars[2,2])
+finalRMSEsplines = data.frame(Splines = splines, RMSE = round(RMSEnumbers,4), RMSE_Dollars = round(exp(RMSEnumbers), 2))
+finalRMSEsplines %>%
+  kable()
+```
+
+# GAM Model       
+|    After fitting some regression splines, the next model we attempted was a General Additive Model or GAM.  In general, this model is used for nonlinear relationships with splines on various variables.  All available predictors were used to fit the GAM, along with the splines calculated above.  There is definitely some improvement over the baseline as the RMSE = 0.1227 was below the baseline of 0.14.  The final RMSE can be shifted depending on the which splines are used but, in general, this RMSE number is an improvement from our baseline model.  The GAM combined with the splines is currently our best performing regression method.  
+
+```{r echo = FALSE}
+gammod <- lm(SalePrice ~ . + bs(X2ndFlrSF, df = 2) + bs(OverallCond, df = 3) + bs(X1stFlrSF, df = 5) + bs(GarageCars, df = 3) , data = training)
+#summary(gammod)
+gam_predict = predict(gammod, newdata = testing)
+gam_MSE = round(sqrt(mean((testing$SalePrice - gam_predict)^2)), 4)
+print(paste("Test RMSE of GAM: ", gam_MSE))
+```
+
+|   Below is a measured versus predicted plot.  In general, our predictions follow the direction of the red target line with most points centered around the line.  There are no visible splits in the predicted values and the measured responses.  This compliments our lower RMSE score.  
+
+```{r fig.width=6, fig.height=4}
+predplot(gammod, ncomp = 15, line =TRUE, line.col ="red", line.lty ="dashed", main = "GAM Predictions")
+```
+
+
+These are the data sets from our Kaggle Challenge.
+
+We have two data sets
+
+1] Train set (From row #1 to row #1460)
+
+2] Test set (From row #1461 to row #2919)
+
+```{r}
+# making a data frame of the Training Set
+train_df = read.csv("train.csv")
+test_df = read.csv("test.csv")
+```
+
+```{r}
+dim(train_df)
+# checking number of rows and vertical columns in train data frame
+```
+
+```{r}
+dim(test_df)
+# checking number of rows and vertical columns in test data frame
+```
+
+```{r}
+all_data = bind_rows(train_df,test_df)
+dim(all_data)
+#head(all_data)
+```
+
+Sales price column created in test df also has null values
+
+```{r}
+#tail(all_data)
+```
+
+Already the data has Id as row index, so we just remove the first column
+
+```{r}
+all_data=all_data[,-1]
+#head(all_data)
+dim(all_data)
+```
+
+We have,
+
+1] 80 columns (including target ) after droping ID column
+
+2] Mixture of Numerical and Categorical data
+
+```{r}
+#checking data type
+str(all_data)
+```
+
+Checking for null values and replacing them with mode for categorical features and median for numerical features
+
+```{r}
+all_data_na=100*sapply(all_data, function(x) sum(is.na(x)) ) /nrow(all_data)
+all_data_na = all_data_na[all_data_na != 0]
+missing_data = as.data.frame(all_data_na)
+colnames(missing_data)="Missing Ratio"
+#head(missing_data)
+```
+
+Started imputing nulls
+
+For categorical varaible putting mode for missing value
+
+and for numerical varibale putting median
+
+PoolQC : data description says NA means "No Pool". That make sense, given the huge ratio of missing value (+99%) and majority of houses have no Pool at all in general.
+
+```{r}
+all_data=all_data%>%
+  replace_na(list(PoolQC = "None",MiscFeature = "None" , Alley="None",
+                  Fence = "None", FireplaceQu="None", LotFrontage=median(all_data$LotFrontage,na.rm = TRUE), GarageType="None", 
+                  GarageFinish="None", GarageQual="None", GarageCond="None",
+                  GarageYrBlt=0,GarageArea=0,GarageCars=0, BsmtFinSF1 =0,  BsmtFinSF2 =0,  BsmtUnfSF =0, TotalBsmtSF =0,  BsmtFullBath =0,  BsmtHalfBath =0,
+ BsmtQual  ="None" ,  BsmtCond  ="None" ,  BsmtExposure  ="None" ,  BsmtFinType1  ="None" ,  BsmtFinType2  ="None" ,
+ MasVnrType="None",MasVnrArea=0, MSZoning=names(table(all_data$MSZoning))[table(all_data$MSZoning)==max(table(all_data$MSZoning))][1],Functional="Typ", Electrical=names(table(all_data$Electrical))[table(all_data$Electrical)==max(table(all_data$Electrical))][1],KitchenQual="TA",Exterior1st=names(table(all_data$Exterior1st))[table(all_data$Exterior1st)==max(table(all_data$Exterior1st))][1],Exterior2nd=names(table(all_data$Exterior2nd))[table(all_data$Exterior2nd)==max(table(all_data$Exterior2nd))][1],SaleType=names(table(all_data$SaleType))[table(all_data$SaleType)==max(table(all_data$SaleType))][1],
+ MSSubClass=median(all_data$MSSubClass)))
+```
+
+Utilities : For this categorical feature all records are "AllPub", except for one "NoSeWa" and 2 NA . Since the house with 'NoSewa' is in the training set, this feature won't help in predictive modelling. We can then safely remove it.
+
+```{r}
+all_data=all_data[,-which(colnames(all_data)=="Utilities")]
+```
+
+Lets check for remaining missing values
+
+```{r}
+all_data_na_1=100*sapply(all_data, function(x) sum(is.na(x)) ) /nrow(all_data)
+all_data_na_1 = all_data_na_1[all_data_na_1 != 0]
+missing_data_1 = as.data.frame(all_data_na_1)
+colnames(missing_data_1)="Missing Ratio"
+#head(missing_data_1)
+```
+
+sale price will be dropped from training set and then we will have no null values
+
+```{r}
+#head(all_data)
+```
+
+Separating categorical predictors for one hot encoding
+
+For categorical features we will use one hot encoding Because most of categorical features have 3 to 5 types.
+
+Changing object type data into category type. It will help in one hot endcoding
+
+```{r}
+all_data[sapply(all_data, is.character)] <- lapply(all_data[sapply(all_data, is.character)], as.factor)
+sum(is.na(all_data))
+```
+
+
+One Hot Encoding is a process in the data processing that is applied to categorical data, to convert it into a binary vector representation for use in machine learning algorithms
+
+```{r}
+new_train_df = all_data[1:1460,]
+new_test_df = all_data[1461:nrow(all_data),]
+```
+
+```{r}
+dim(new_train_df)
+sum(is.na(new_train_df))
+str(new_train_df)
+dim(new_test_df)
+sum(is.na(new_test_df))
+str(new_test_df)
+```
+
+Spliting the data frame into numerical and categorical predictors for feature engineering
+
+```{r}
+numerical_train = new_train_df[!sapply(new_train_df, is.factor)]
+categorical_train = new_train_df[sapply(new_train_df, is.factor)]
+#head(categorical_train)
+dim(categorical_train)
+```
+
+```{r}
+#head(numerical_train)
+dim(numerical_train)
+```
+
+converting categorical features into binary for train set
+
+```{r}
+ohe_cat_train = dummy_cols(categorical_train,select_columns = colnames(categorical_train)
+           ,remove_selected_columns = TRUE)
+#head(ohe_cat_train)
+```
+
+ohe_train_total is the training data where categorical predicators are in binary
+this is final train data for Machine learning
+
+```{r}
+ohe_train_total = bind_cols(ohe_cat_train , numerical_train)
+
+#head(ohe_train_total)
+```
+
+NOw test data cetegorical predictors into binary
+
+```{r}
+numerical_test = new_test_df[!sapply(new_test_df, is.factor)]
+categorical_test = new_test_df[sapply(new_test_df, is.factor)]
+#head(categorical_test)
+dim(categorical_test)
+```
+
+```{r}
+#head(numerical_test)
+dim(numerical_test)
+numerical_test_mod=numerical_test[,-which(colnames(numerical_test)=="SalePrice")]
+```
+
+converting categorical features into binary for test set
+
+```{r}
+ohe_cat_test = dummy_cols(categorical_test,select_columns = colnames(categorical_test)
+                           ,remove_selected_columns = TRUE)
+#head(ohe_cat_test)
+```
+
+ohe_test_total is the testing data where categorical predicators are in binary
+this is final test data for Machine learning
+
+```{r}
+ohe_test_total = bind_cols(ohe_cat_test , numerical_test_mod)
+dim(ohe_test_total)
+#head(ohe_test_total)
+```
+
+test set is ready
+
+PCR model
+
+Is PCA + regression
+
+principle components analysis takes in the predictor data frame and compresses it. It is used to reduce the number of predictors.
+
+We will train our PCR on training data now
+
+Spliting the data into predictor dataframe which is X
+
+and
+
+Response variable which is y
+
+```{r}
+#head(ohe_train_total)
+dim(ohe_train_total)
+```
+
+Removing response variable
+
+```{r}
+X = ohe_train_total[,-which(colnames(ohe_train_total)=="SalePrice")]
+dim(X)
+```
+
+Putting response variable in y
+
+```{r}
+dim(train_df)
+```
+
+```{r}
+y = train_df[,"SalePrice"]
+#head(y)
+#y is response varibale
+```
+
+Log tranformation of Response variable
+
+```{r}
+y_log = log(y)
+#head(y_log)
+```
+
+Train test split
+
+```{r}
+set.seed(1234)
+n=nrow(X)
+test_index=sample(1:n,floor(0.3*n))
+#scaling the data
+X_scaled=scale(X)
+X_train=X_scaled[-test_index,]
+X_test=X_scaled[test_index,]
+y_train=y_log[-test_index]
+y_test=y_log[test_index]
+```
+
+To perform PCR we perfoem regression on the principle components derived from PCA
+
+Creating a Regression intance
+
+```{r}
+pcr_model <- pcr(y_train~X_train, validation = "CV")
+summary(pcr_model)
+```
+
+From the cumulative variability we note 90% has been achieved for 68 components. For some components the values 1 are so rare the variability is very high divering to infinity.
+
+So we have taken 70 components to predict
+
+Now we fit the observations to train data and obtain the RMSE as below:
+
+```{r}
+pcr_pred_train <- predict(pcr_model, X_train, ncomp = 70)
+sqrt(mean((pcr_pred_train - y_train)^2))
+```
+
+So the RMSE for PCR for training dataset is 0.1243
+
+Our regression model is now trained on our pca data
+
+Test Set
+
+we need to do the same procesure as above that is use standard scaler on test data then use PCA with n_components 45 then use regression
+
+```{r}
+pcr_pred_test <- predict(pcr_model, X_test, ncomp = 70)
+sqrt(mean((pcr_pred_test - y_test)^2))
+```
+
+RMSE for unseen the test set is 0.1502.
+
+## Partial least square regression
+
+checking of n_components for PLS
+
+```{r}
+# Build the model on training set
+set.seed(1234)
+train_data<-as.data.frame(cbind(y_train,X_train))
+#head(train_data)
+model <- train(
+  y_train~.,data=train_data, method = "pls",
+  trControl = trainControl("cv", number = 10),
+  tuneLength = 100
+  )
+# Plot model RMSE vs different values of components
+plot(model)
+# Print the best tuning parameter ncomp that
+# minimize the cross-validation error, RMSE
+model$bestTune
+```
+
+```{r}
+# Summarize the final model
+summary(model$finalModel)
+```
+
+```{r}
+# Make predictions
+predictions_train <- model %>% predict(train_data)
+# Model performance metrics
+data.frame(
+  RMSE = caret::RMSE(predictions_train, train_data$y_train),
+  Rsquare = caret::R2(predictions_train, train_data$y_train)
+)
+```
+
+RMSE with partial least squares regression on training set is 0.0596
+
+Using PLS on test set (unseen data)
+
+```{r}
+test_data<-as.data.frame(X_test)
+# Make predictions
+predictions_test <- model %>% predict(test_data)
+#predictions_test
+# Model performance metrics
+data.frame(
+  RMSE = caret::RMSE(predictions_test, y_test),
+  Rsquare = caret::R2(predictions_test, y_test)
+)
+```
+
+RMSE on test data set is 0.1406
+
+## Trees, Bagging, and Random Forests
+
+|   Finally we are doing to try and do trees, bagging, and random forests. To begin we fit a normal tree without any editing. From this it returned 6 significant variables out of the 80 we are testing. These included: OverallQual, GrLivArea, TotalBsmtSF, OverallCond, BsmtFinSF1, and GarageCars yielding 12 terminal nodes and a root mean squared error of .2135 (not the best). After this we looked to prune the tree to see what the best utilization of terminal nodes. After pruning we graphed the RMSE to terminal nodes to discover that anything above 6 would yield similar results. We noticed that throughout all of our terminal node sizes nothing we changed it to would change our RMSE significantly enough to care. Next we tried our luck at bagging.
+
+```{r, echo = FALSE}
+tree <- tree(SalePrice ~ ., data = training); summary(tree)
+plot(tree); text(tree)
+pred <- predict(tree, testing)
+tree_MSE = round(sqrt(mean((testing$SalePrice - pred)^2)), 4)
+print(paste("Test RMSE of Tree: ", tree_MSE))
+tree.cv <- cv.tree(tree)
+plot(tree.cv$size, sqrt(tree.cv$dev / nrow(training)), type = "b",
+     xlab = "Tree Size", ylab = "CV-RMSE")
+```
+
+|   Before we start bagging we need to make sure to change all of our character values to factors. This is because our gbm model stand for gaussian bagging model and it doesn't take characters. In bagging we do it a little bit different than trees. We are not going to start out with a very basic model and prune it, we are instead going to use some of the information we learned from the previous trees. For example, our value for cv.folds in our gaussian bagging model holds the value of 7. This was chosen based off our CV.RMSE values in our graph above as 7 was around when the value of tree sizes begun to fall off and not change too significantly. The value shrinkage we left at the basic value of .1 as we didn't want to unnecessarily use too many trees. We set our trees at a large value of `r nrow(trainData)` in order for the bagging model to use as many trees as necessary (most of the time it sets around 400-1000 before not reaching the shrinkage parameter). Finally, the last variable we used in our model was 'n.minobsinnode'; this was used as a constraint on the minimum number of observations in the terminal nodes of the tree. In order to find the best model we looped through n.minobsinnode being 1 through 15 and reported the best RMSE value. Below we will return three different graph. The first being a graph depicting the RMSE values of each bagging model. From this graph we can see that a value of 5 for our n.minobsinnode would return the lowest RMSE. Knowing this, we redid the model with this value in place and graphed the actual values of SalePrice (depicted in blue) and where are model went through predicting. 
+
+```{r message = FALSE, warning = FALSE}
+training <- training %>% mutate_if(is.character, as.factor)
+testing <- testing %>% mutate_if(is.character, as.factor)
+mino <- c(1:15)
+rmse <- rep(NA, length(mino))
+for(i in mino) {
+  model_gbm <- gbm(SalePrice ~ ., data = training, cv.folds = 7, shrinkage = .1, 
+                   n.minobsinnode = i, n.trees = nrow(training), verbose = FALSE)
+  
+  pred <- predict.gbm(model_gbm, testing)
+  rmse[i] <- RMSE(testing$SalePrice, pred)
+}
+plot(mino, rmse, xlab = "Min Observations per Node", ylab = "RMSE", col = ifelse(rmse == min(rmse), "red", "black"))
+lines(mino, rmse)
+model_gbm <- gbm(SalePrice ~ ., data = training, cv.folds = 7, shrinkage = .1, 
+                   n.minobsinnode = 5, n.trees = nrow(training))
+pred <- predict.gbm(model_gbm, testing)
+x_ax = 1:length(pred)
+plot(x_ax, testing$SalePrice, col="blue", pch=20, cex=.9)
+lines(x_ax, pred, col="red", pch=20, cex=.9) 
+```
+
+|   Just like with our trees we started with the most basic model we could in random forests, although we did add a few more parameters. One including the mtry, defined as the number of variables sampled as candidates at each split. We chose this to be the number of our columns divided by 3 because as stated in The Elements of Statistical Learning: Data Mining, Inference, and Prediction written by Trevor Hastie, Robert Tibshirani, Jerome Friedman, the text stated, "For regression, the default value for m is [p/3] and the minimum node size is five" (Haste 610). In doing our forest model we got a RMSE value of .14, considering this isn't as small as our bagging was and the only reason to do forests over bagging is because of overfitting we can conclude that our bagging from before holds our best model. 
+
+```{r, echo = FALSE}
+t <- trainData %>% mutate_if(is.character, as.factor)
+trn = sample(seq_len(nrow(t)), 0.7* round(nrow(t)))
+train = t[trn, ]
+test = t[-trn, ]
+output <- randomForest(SalePrice ~ ., data = train, mtry = ncol(train)/3, importance = TRUE)
+pred <- predict(output, test, type = "response")
+rf_MSE <- sqrt(mean((test$SalePrice - pred)^2))
+print(paste("Test RMSE for Random Forest", rf_MSE))
+```
+
+After fitting our model to the proper testData provided by kaggle, we built our csv file and submitted it to the competition. Based off of our training and testing above we were predicting placing around 100th place with a RMSE of `r min(rmse)`. Because the dataset was different than what we were testing on it could have been anything, but we were hopeful. After submission we ended with a RMSE value of .135 placing around 1000th place.  
+
+## Conclusion
+
+```{r, echo = FALSE}
+trainData <- trainData %>% mutate_if(is.character, as.factor)
+testData <- testData %>% mutate_if(is.character, as.factor)
+model_final_bag <- gbm(SalePrice ~ ., data = trainData, cv.folds = 7, shrinkage = .1, 
+                   n.minobsinnode = which(rmse == min(rmse)), n.trees = nrow(trainData), 
+                   verbose = FALSE)
+pred_final <- predict(model_final_bag, testData)
+bag_final_df <- cbind(Id = testData$Id, SalePrice = round(exp(pred_final),1))
+bag_final_df <- data.frame(bag_final_df)
+bag_final_df$Id <- as.integer(bag_final_df$Id)
+write.csv(bag_final_df, 'bag_final', row.names = FALSE)
+```
+
+
+```{r}
+method = c("Linear Regression", "PCR", "PLS", "Splines", "GAM", "Trees", "Random Forest")
+MSEnumbers = c(linear_MSE, 0, 0, df_X2ndFlrSF[1,2], gam_MSE, tree_MSE, rf_MSE)
+finalMSE = data.frame(Methods = method, RMSE = round(MSEnumbers,4), RMSE_Dollars = round(exp(MSEnumbers), 2))
+kable(finalMSE)
+```
+
+## Conclusion
+
+After running all of our models we thought bagging would have proven to be our best bet for placement in the competition. It yielded our lowest rmse value using our training and testing data at `r min(rmse)`. However, that proved to be misleading as ...
+
+
+
+## Github       
+
+All of our work can be found at: https://github.com/trevorisaacson3/KaggleHomePrices
+
+## Sources
+
+Hastie, Trevor, et al. The Elements of Statistical Learning: Data Mining, Inference, and Prediction. Springer, 2017.
