@@ -340,7 +340,7 @@ write.csv(bag_final_df, 'bag_final', row.names = FALSE)
 
 ```{r}
 method = c("Linear Regression", "Splines", "GAM", "Trees", "Bagging", "Random Forest")
-MSEnumbers = c(linear_MSE, df_X2ndFlrSF[1,2], gam_MSE, tree_MSE, min(rmse), rf_MSE)
+MSEnumbers = c(linear_MSE, df_X2ndFlrSF[1,2], gam_MSE, tree_MSE, min(bag_rmse), rf_MSE)
 finalMSE = data.frame(Methods = method, RMSE = round(MSEnumbers,4), RMSE_Dollars = round(exp(MSEnumbers), 2))
 kable(finalMSE)
 ```
