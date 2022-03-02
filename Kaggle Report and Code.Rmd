@@ -95,12 +95,8 @@ trainData <- trainData[, cond, drop = TRUE]
 trainData = trainData %>%
   mutate(across(where(is.character), replace_na, "None")) %>%
   mutate(across(where(is.integer), replace_na, 0))
-
-# colSums(is.na(trainData))
-  
-# cond2 <- colSums(trainData == is.integer(0)) # check int variables for values equal to 0
-# colSums(is.na(trainData))
 ```
+
 ```{r}
 testData = testData %>%
   select(-c(Utilities, Condition2, RoofMatl)) %>%
@@ -134,6 +130,8 @@ testData = testData %>%
   mutate(Neighborhood = fct_lump(Neighborhood, n = 5, other_level = "Other")) %>%
   mutate(Exterior1st = fct_lump(Exterior1st, n = 5, other_level = "Other")) %>%
   mutate(Exterior2nd = fct_lump(Exterior2nd, n = 5, other_level = "Other"))
+
+testData$FullBath = replace(testData$FullBath, testData$FullBath == 4, 3)
 ```
 
 
@@ -257,7 +255,6 @@ print(paste("Test RMSE of GAM: ", gam_MSE))
 predplot(gammod, ncomp = 15, line =TRUE, line.col ="red", line.lty ="dashed", main = "GAM Predictions")
 ```
 
-
 ## Trees, Bagging, and Random Forests
 
 |   Finally we are doing to try and do trees, bagging, and random forests. To begin we fit a normal tree without any editing. From this it returned 6 significant variables out of the 80 we are testing. These included: OverallQual, GrLivArea, TotalBsmtSF, OverallCond, BsmtFinSF1, and GarageCars yielding 12 terminal nodes and a root mean squared error of .2135 (not the best). After this we looked to prune the tree to see what the best utilization of terminal nodes. After pruning we graphed the RMSE to terminal nodes to discover that anything above 6 would yield similar results. We noticed that throughout all of our terminal node sizes nothing we changed it to would change our RMSE significantly enough to care. Next we tried our luck at bagging.
@@ -316,14 +313,15 @@ output <- randomForest(SalePrice ~ ., data = train, mtry = ncol(train)/3, import
 pred <- predict(output, test, type = "response")
 
 rf_MSE <- sqrt(mean((test$SalePrice - pred)^2))
-print(paste("Test RMSE for Random Forest", rf_MSE))
+print(paste("Test RMSE for Random Forest", round(rf_MSE, 4)))
 ```
 
-After fitting our model to the proper testData provided by kaggle, we built our csv file and submitted it to the competition. Based off of our training and testing above we were predicting placing around 100th place with a RMSE of `r min(rmse)`. Because the dataset was different than what we were testing on it could have been anything, but we were hopeful. After submission we ended with a RMSE value of .135 placing around 1000th place.  
+|   After fitting our model to the proper testData provided by Kaggle, we built our csv file and submitted it to the competition. Based off of our training and testing above we were predicting placing around 100th place with a RMSE of `r min(rmse)`. Because the dataset was different than what we were testing on, it could have been anything, but we were hopeful. After submission, we ended with a RMSE value of .135 placing around 1000th place.  
+
 
 ## Conclusion
 
-```{r, echo = FALSE}
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
 trainData <- trainData %>% mutate_if(is.character, as.factor)
 testData <- testData %>% mutate_if(is.character, as.factor)
 
