@@ -272,7 +272,9 @@ plot(tree.cv$size, sqrt(tree.cv$dev / nrow(training)), type = "b",
      xlab = "Tree Size", ylab = "CV-RMSE")
 ```
 
-|   Before we start bagging we need to make sure to change all of our character values to factors. This is because our gbm model stand for gaussian bagging model and it doesn't take characters. In bagging we do it a little bit different than trees. We are not going to start out with a very basic model and prune it, we are instead going to use some of the information we learned from the previous trees. For example, our value for cv.folds in our gaussian bagging model holds the value of 7. This was chosen based off our CV.RMSE values in our graph above as 7 was around when the value of tree sizes begun to fall off and not change too significantly. The value shrinkage we left at the basic value of .1 as we didn't want to unnecessarily use too many trees. We set our trees at a large value of `r nrow(trainData)` in order for the bagging model to use as many trees as necessary (most of the time it sets around 400-1000 before not reaching the shrinkage parameter). Finally, the last variable we used in our model was 'n.minobsinnode'; this was used as a constraint on the minimum number of observations in the terminal nodes of the tree. In order to find the best model we looped through n.minobsinnode being 1 through 15 and reported the best RMSE value. Below we will return three different graph. The first being a graph depicting the RMSE values of each bagging model. From this graph we can see that a value of 5 for our n.minobsinnode would return the lowest RMSE. Knowing this, we redid the model with this value in place and graphed the actual values of SalePrice (depicted in blue) and where are model went through predicting. 
+## Bagging
+
+|   Before we start bagging we need to make sure to change all of our character values to factors. This is because our gbm model stand for gaussian bagging model and it doesn't take characters. In bagging we do it a little bit different than trees. We are not going to start out with a very basic model and prune it, we are instead going to use some of the information we learned from the previous trees. For example, our value for cv.folds in our gaussian bagging model holds the value of 7. This was chosen based off our CV.RMSE values in our graph above as 7 was around when the value of tree sizes begun to fall off and not change too significantly. The value shrinkage we left at the basic value of .1 as we didn't want to unnecessarily use too many trees. We set our trees at a large value of `r nrow(trainData)` in order for the bagging model to use as many trees as necessary (most of the time it sets around 400-1000 before not reaching the shrinkage parameter). Finally, the last variable we used in our model was 'n.minobsinnode'; this was used as a constraint on the minimum number of observations in the terminal nodes of the tree. 
 
 ```{r message = FALSE, warning = FALSE}
 training <- training %>% mutate_if(is.character, as.factor)
@@ -300,6 +302,10 @@ plot(x_ax, testing$SalePrice, col="blue", pch=20, cex=.9)
 lines(x_ax, pred, col="red", pch=20, cex=.9) 
 ```
 
+|   In order to find the best model we looped through n.minobsinnode being 1 through 15 and reported the best RMSE value. Above are two different graphs. The first being a graph depicting the RMSE values of each bagging model. From this graph we can see that a value of `r which(bag_rmse == min(bag_rmse))` for our n.minobsinnode would return the lowest RMSE at a value of `r min(bag_rmse)`. Knowing this, we redid the model with this value in place and graphed the actual values of SalePrice (depicted in blue) and where are model went through predicting. Considering our bagging returned a significantly lower value for our RME than trees forests may not be absolutly necessary. We will run a basic forest model to double check before accepting bagging as our lowest RMSE for this section.
+
+## Forests
+
 |   Just like with our trees we started with the most basic model we could in random forests, although we did add a few more parameters. One including the mtry, defined as the number of variables sampled as candidates at each split. We chose this to be the number of our columns divided by 3 because as stated in The Elements of Statistical Learning: Data Mining, Inference, and Prediction written by Trevor Hastie, Robert Tibshirani, Jerome Friedman, the text stated, "For regression, the default value for m is [p/3] and the minimum node size is five" (Haste 610). In doing our forest model we got a RMSE value of .14, considering this isn't as small as our bagging was and the only reason to do forests over bagging is because of overfitting we can conclude that our bagging from before holds our best model. 
 
 ```{r, echo = FALSE}
@@ -315,7 +321,6 @@ pred <- predict(output, test, type = "response")
 rf_MSE <- sqrt(mean((test$SalePrice - pred)^2))
 print(paste("Test RMSE for Random Forest", round(rf_MSE, 4)))
 ```
-
 
 ## Conclusion
 
@@ -333,7 +338,6 @@ bag_final_df$Id <- as.integer(bag_final_df$Id)
 write.csv(bag_final_df, 'bag_final', row.names = FALSE)
 ```
 
-
 ```{r}
 method = c("Linear Regression", "Splines", "GAM", "Trees", "Bagging", "Random Forest")
 MSEnumbers = c(linear_MSE, df_X2ndFlrSF[1,2], gam_MSE, tree_MSE, min(rmse), rf_MSE)
@@ -341,7 +345,6 @@ finalMSE = data.frame(Methods = method, RMSE = round(MSEnumbers,4), RMSE_Dollars
 kable(finalMSE)
 ```
 
-## Conclusion
 |   After fitting our model to the proper testData provided by Kaggle, we built our csv file and submitted it to the competition.  We thought bagging would have proven to be our best bet for placement in the competition. It yielded our lowest rmse value using our training and testing data at `r min(rmse)`.  Based off of our training and testing above we were predicting placing around 100th place with a RMSE of `r min(rmse)`. Because the dataset was different than what we were testing on, it could have been anything, but we were hopeful. After submission, we ended with a RMSE value of .135 placing around 1000th place.  
 
 |   With over 4,410 teams competing in this competition, we happened to beat ~75% of the other teams.  Without overfitting, we think our results are accurate enough to potentially continue further research.  
