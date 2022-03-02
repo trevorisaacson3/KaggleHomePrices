@@ -258,16 +258,6 @@ predplot(gammod, ncomp = 15, line =TRUE, line.col ="red", line.lty ="dashed", ma
 ```
 
 
-```{r}
-# gam_test = predict(gammod, testData)
-
-
-
-```
-
-
-
-
 ## Trees, Bagging, and Random Forests
 
 |   Finally we are doing to try and do trees, bagging, and random forests. To begin we fit a normal tree without any editing. From this it returned 6 significant variables out of the 80 we are testing. These included: OverallQual, GrLivArea, TotalBsmtSF, OverallCond, BsmtFinSF1, and GarageCars yielding 12 terminal nodes and a root mean squared error of .2135 (not the best). After this we looked to prune the tree to see what the best utilization of terminal nodes. After pruning we graphed the RMSE to terminal nodes to discover that anything above 6 would yield similar results. We noticed that throughout all of our terminal node sizes nothing we changed it to would change our RMSE significantly enough to care. Next we tried our luck at bagging.
@@ -329,16 +319,36 @@ rf_MSE <- sqrt(mean((test$SalePrice - pred)^2))
 print(paste("Test RMSE for Random Forest", rf_MSE))
 ```
 
+After fitting our model to the proper testData provided by kaggle, we built our csv file and submitted it to the competition. Based off of our training and testing above we were predicting placing around 100th place with a RMSE of `r min(rmse)`. Because the dataset was different than what we were testing on it could have been anything, but we were hopeful. After submission we ended with a RMSE value of .135 placing around 1000th place.  
 
 ## Conclusion
+
+```{r, echo = FALSE}
+trainData <- trainData %>% mutate_if(is.character, as.factor)
+testData <- testData %>% mutate_if(is.character, as.factor)
+
+model_final_bag <- gbm(SalePrice ~ ., data = trainData, cv.folds = 7, shrinkage = .1, 
+                   n.minobsinnode = which(rmse == min(rmse)), n.trees = nrow(trainData), 
+                   verbose = FALSE)
+
+pred_final <- predict(model_final_bag, testData)
+bag_final_df <- cbind(Id = testData$Id, SalePrice = round(exp(pred_final),1))
+bag_final_df <- data.frame(bag_final_df)
+bag_final_df$Id <- as.integer(bag_final_df$Id)
+write.csv(bag_final_df, 'bag_final', row.names = FALSE)
+```
+
+
 ```{r}
 method = c("Linear Regression", "PCR", "PLS", "Splines", "GAM", "Trees", "Random Forest")
 MSEnumbers = c(linear_MSE, 0, 0, df_X2ndFlrSF[1,2], gam_MSE, tree_MSE, rf_MSE)
-
 finalMSE = data.frame(Methods = method, RMSE = round(MSEnumbers,4), RMSE_Dollars = round(exp(MSEnumbers), 2))
 kable(finalMSE)
 ```
 
+## Conclusion
+
+After running all of our models we thought bagging would have proven to be our best bet for placement in the competition. It yielded our lowest rmse value using our training and testing data at `r min(rmse)`. However, that proved to be misleading as ...
 
 
 
