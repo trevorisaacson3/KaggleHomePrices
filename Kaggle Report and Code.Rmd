@@ -278,21 +278,21 @@ plot(tree.cv$size, sqrt(tree.cv$dev / nrow(training)), type = "b",
 training <- training %>% mutate_if(is.character, as.factor)
 testing <- testing %>% mutate_if(is.character, as.factor)
 mino <- c(1:15)
-rmse <- rep(NA, length(mino))
+bag_rmse <- rep(NA, length(mino))
 
 for(i in mino) {
   model_gbm <- gbm(SalePrice ~ ., data = training, distribution = 'gaussian', cv.folds = 7, shrinkage = .1, 
                    n.minobsinnode = i, n.trees = nrow(training), verbose = FALSE)
   
   pred <- predict.gbm(model_gbm, testing)
-  rmse[i] <- RMSE(testing$SalePrice, pred)
+  bag_rmse[i] <- RMSE(testing$SalePrice, pred)
 }
 
-plot(mino, rmse, xlab = "Min Observations per Node", ylab = "RMSE", col = ifelse(rmse == min(rmse), "red", "black"))
-lines(mino, rmse)
+plot(mino, bag_rmse, xlab = "Min Observations per Node", ylab = "RMSE", col = ifelse(bag_rmse == min(bag_rmse), "red", "black"))
+lines(mino, bag_rmse)
 
 model_gbm <- gbm(SalePrice ~ ., data = training, distribution = 'gaussian', cv.folds = 7, shrinkage = .1, 
-                   n.minobsinnode = 5, n.trees = nrow(training))
+                   n.minobsinnode = which(bag_rmse == min(bag_rmse)), n.trees = nrow(training))
 
 pred <- predict.gbm(model_gbm, testing)
 x_ax = 1:length(pred)
@@ -326,7 +326,7 @@ trainData <- trainData %>% mutate_if(is.character, as.factor)
 testData <- testData %>% mutate_if(is.character, as.factor)
 
 model_final_bag <- gbm(SalePrice ~ ., data = trainData, distribution = 'gaussian', cv.folds = 7, shrinkage = .1, 
-                   n.minobsinnode = which(rmse == min(rmse)), n.trees = nrow(trainData), 
+                   n.minobsinnode = which(bag_rmse == min(bag_rmse)), n.trees = nrow(trainData), 
                    verbose = FALSE)
 
 pred_final <- predict(model_final_bag, testData)
@@ -338,15 +338,15 @@ write.csv(bag_final_df, 'bag_final', row.names = FALSE)
 
 
 ```{r}
-method = c("Linear Regression", "PCR", "PLS", "Splines", "GAM", "Trees", "Random Forest")
-MSEnumbers = c(linear_MSE, 0, 0, df_X2ndFlrSF[1,2], gam_MSE, tree_MSE, rf_MSE)
+method = c("Linear Regression", "PCR", "PLS", "Splines", "GAM", "Trees", "Bagging", "Random Forest")
+MSEnumbers = c(linear_MSE, 0, 0, df_X2ndFlrSF[1,2], gam_MSE, tree_MSE, bag_rmse, rf_MSE)
 finalMSE = data.frame(Methods = method, RMSE = round(MSEnumbers,4), RMSE_Dollars = round(exp(MSEnumbers), 2))
 kable(finalMSE)
 ```
 
 ## Conclusion
 
-After running all of our models we thought bagging would have proven to be our best bet for placement in the competition. It yielded our lowest rmse value using our training and testing data at `r min(rmse)`. However, that proved to be misleading as ...
+After running all of our models we thought bagging would have proven to be our best bet for placement in the competition. It yielded our lowest rmse value using our training and testing data at `r min(rmse)`. However, that proved to be misleading as the submission with the actual test data wasn't that close.
 
 
 
