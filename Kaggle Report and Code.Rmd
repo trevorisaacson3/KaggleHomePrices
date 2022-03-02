@@ -323,10 +323,27 @@ rmse <- sqrt(mean((test$SalePrice - pred)^2))
 print(paste("Test RMSE for Random Forest", rmse))
 ```
 
+After fitting our model to the proper testData provided by kaggle, we built our csv file and submitted it to the competition. Based off of our training and testing above we were predicting placing around 100th place with a RMSE of `r min(rmse)`. Because the dataset was different than what we were testing on it could have been anything, but we were hopeful. After submission we ended with a RMSE value of .135 placing around 1000th place.  
+
+```{r, echo = FALSE}
+trainData <- trainData %>% mutate_if(is.character, as.factor)
+testData <- testData %>% mutate_if(is.character, as.factor)
+
+model_final_bag <- gbm(SalePrice ~ ., data = trainData, cv.folds = 7, shrinkage = .1, 
+                   n.minobsinnode = which(rmse == min(rmse)), n.trees = nrow(trainData), 
+                   verbose = FALSE)
+
+pred_final <- predict(model_final_bag, testData)
+bag_final_df <- cbind(Id = testData$Id, SalePrice = round(exp(pred_final),1))
+bag_final_df <- data.frame(bag_final_df)
+bag_final_df$Id <- as.integer(bag_final_df$Id)
+write.csv(bag_final_df, 'bag_final', row.names = FALSE)
+```
+
 
 ## Conclusion
 
-
+After running all of our models we thought bagging would have proven to be our best bet for placement in the competition. It yielded our lowest rmse value using our training and testing data at `r min(rmse)`. However, that proved to be misleading as ...
 
 
 
