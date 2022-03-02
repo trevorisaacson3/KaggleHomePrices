@@ -281,7 +281,7 @@ mino <- c(1:15)
 rmse <- rep(NA, length(mino))
 
 for(i in mino) {
-  model_gbm <- gbm(SalePrice ~ ., data = training, cv.folds = 7, shrinkage = .1, 
+  model_gbm <- gbm(SalePrice ~ ., data = training, distribution = 'gaussian', cv.folds = 7, shrinkage = .1, 
                    n.minobsinnode = i, n.trees = nrow(training), verbose = FALSE)
   
   pred <- predict.gbm(model_gbm, testing)
@@ -291,7 +291,7 @@ for(i in mino) {
 plot(mino, rmse, xlab = "Min Observations per Node", ylab = "RMSE", col = ifelse(rmse == min(rmse), "red", "black"))
 lines(mino, rmse)
 
-model_gbm <- gbm(SalePrice ~ ., data = training, cv.folds = 7, shrinkage = .1, 
+model_gbm <- gbm(SalePrice ~ ., data = training, distribution = 'gaussian', cv.folds = 7, shrinkage = .1, 
                    n.minobsinnode = 5, n.trees = nrow(training))
 
 pred <- predict.gbm(model_gbm, testing)
@@ -325,7 +325,7 @@ print(paste("Test RMSE for Random Forest", round(rf_MSE, 4)))
 trainData <- trainData %>% mutate_if(is.character, as.factor)
 testData <- testData %>% mutate_if(is.character, as.factor)
 
-model_final_bag <- gbm(SalePrice ~ ., data = trainData, cv.folds = 7, shrinkage = .1, 
+model_final_bag <- gbm(SalePrice ~ ., data = trainData, distribution = 'gaussian', cv.folds = 7, shrinkage = .1, 
                    n.minobsinnode = which(rmse == min(rmse)), n.trees = nrow(trainData), 
                    verbose = FALSE)
 
